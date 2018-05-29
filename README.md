@@ -9,7 +9,7 @@
  This project is currently tested on windows 7, MSVC 2017 Community and Qt version 5.9. There are several notes to consider:
  
  1. You must edit urhoqt1.pro and change URHO_HOME variable to point to your chroot of your urho3d instalation folder.
- 2. You must edit [engineParameters_ ResourcePrefixPaths](https://github.com/rdhafidh/Urho3DInsideQWidget/blob/master/urho3dwidget.cpp#L171) to point to your  URHO_HOME/share/Resources folder.
+ 2. You must edit [engineParameters_ ResourcePrefixPaths](https://github.com/rdhafidh/Urho3DInsideQWidget/blob/master/urho3dwidget.cpp#L175) to point to your  URHO_HOME/share/Resources folder.
  
 Happy Hacking !
  
