@@ -28,6 +28,8 @@ static SDL_Keycode __convertQtKeyToSDL(Qt::Key qtKey);
 
 //------------------------------------------------------------------------------------------------------
 // map keys Qt/SDL
+// Fixme : this key mapping is bit awackward, I don't know yet and familiar enough with
+// SDL UI System.
 //------------------------------------------------------------------------------------------------------
 void __initKeyMap()
 {
@@ -118,6 +120,8 @@ return sdlModifiers;
 
 Urho3dWidget::Urho3dWidget(Urho3D::Context *context, QWidget *parent) : QWidget(parent),Urho3D::Object(context),
     engine_(nullptr),scene_(nullptr),cameraNode_(nullptr)
+	//here there is now scene_ and cameraNode_ ready for use.
+	//but for the simple demos, currently not needed yet
 {
     __initKeyMap();
     
@@ -184,6 +188,8 @@ void Urho3dWidget::closeEvent(QCloseEvent *e)
 void Urho3dWidget::timerEvent(QTimerEvent *e)
 {
     QWidget::timerEvent(e);
+   // FIXME : Uncommenting following line sometimes crashes the ui in release build
+   // still don't know why. But, I believe this should be better removed.
    // qApp->processEvents();
     
     if(engine_.NotNull () && engine_->IsInitialized ()){
