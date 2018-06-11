@@ -1,230 +1,209 @@
 #include "urho3dwidget.h"
 
 #include <SDL/SDL.h>
-#include <QMap>
-#include <QResizeEvent>
-#include <QTimerEvent>
-#include <QKeyEvent>
+#include <Urho3D/Core/CoreEvents.h>
 #include <Urho3D/Graphics/Graphics.h>
-#include <Urho3D/Resource/ResourceCache.h>
+#include <Urho3D/Graphics/Light.h>
+#include <Urho3D/Graphics/Material.h>
+#include <Urho3D/Graphics/Model.h>
+#include <Urho3D/Graphics/Octree.h>
+#include <Urho3D/Graphics/Renderer.h>
+#include <Urho3D/Graphics/StaticModel.h>
+#include <Urho3D/Input/Input.h>
 #include <Urho3D/Math/Quaternion.h>
 #include <Urho3D/Math/Vector3.h>
-#include <QApplication>
-#include <Urho3D/Core/CoreEvents.h>
+#include <Urho3D/Resource/ResourceCache.h>
+#include <Urho3D/UI/Font.h>
 #include <Urho3D/UI/Text.h>
 #include <Urho3D/UI/UI.h>
 #include <Urho3D/UI/UIElement.h>
-#include <Urho3D/UI/Font.h>
+#include <QApplication>
 #include <QCloseEvent>
+#include <QKeyEvent>
+#include <QMap>
+#include <QResizeEvent>
+#include <QTimerEvent>
+#include <QPainter>
+#include <QPoint>
+ 
 
-//------------------------------------------------------------------------------------------------------
+Urho3dWidget::Urho3dWidget(Urho3D::Context *context, QWidget *parent)
+    : QWidget(parent),
+      Urho3D::Object(context),
+      engine_(nullptr),
+      scene_(nullptr),
+      cameraNode_(nullptr)
+// here there is now scene_ and cameraNode_ ready for use.
+// but for the simple demos, currently not needed yet
+{ 
 
-// key utilities to convert Qt key to SDL key
-//------------------------------------------------------------------------------------------------------
-static QMap<Qt::Key, SDL_Keycode> __keymap;
-static void __initKeyMap();
-static Uint16 __convertQtKeyModifierToSDL(Qt::KeyboardModifiers qtKeyModifiers);
-static SDL_Keycode __convertQtKeyToSDL(Qt::Key qtKey);
-
-//------------------------------------------------------------------------------------------------------
-// map keys Qt/SDL
-// Fixme : this key mapping is bit awackward, I don't know yet and familiar enough with
-// SDL UI System.
-//------------------------------------------------------------------------------------------------------
-void __initKeyMap()
-{
-__keymap[Qt::Key_unknown] = SDLK_UNKNOWN;
-__keymap[Qt::Key_Escape] = SDLK_ESCAPE;
-__keymap[Qt::Key_Tab] = SDLK_TAB;
-__keymap[Qt::Key_Backspace] = SDLK_BACKSPACE;
-__keymap[Qt::Key_Return] = SDLK_RETURN;
-__keymap[Qt::Key_Enter] = SDLK_KP_ENTER;
-__keymap[Qt::Key_Insert] = SDLK_INSERT;
-__keymap[Qt::Key_Delete] = SDLK_DELETE;
-__keymap[Qt::Key_Pause] = SDLK_PAUSE;
-__keymap[Qt::Key_Print] = SDLK_PRINTSCREEN;
-__keymap[Qt::Key_SysReq] = SDLK_SYSREQ;
-__keymap[Qt::Key_Home] = SDLK_HOME;
-__keymap[Qt::Key_Home] = SDLK_AC_HOME;
-__keymap[Qt::Key_End] = SDLK_END;
-__keymap[Qt::Key_Left] = SDLK_LEFT;
-__keymap[Qt::Key_Right] = SDLK_RIGHT;
-__keymap[Qt::Key_Up] = SDLK_UP;
-__keymap[Qt::Key_Down] = SDLK_DOWN;
-__keymap[Qt::Key_PageUp] = SDLK_PAGEUP;
-__keymap[Qt::Key_PageDown] = SDLK_PAGEDOWN;
-__keymap[Qt::Key_Shift] = SDLK_LSHIFT;
-__keymap[Qt::Key_Control] = SDLK_LCTRL;
-__keymap[Qt::Key_Alt] = SDLK_LALT;
-__keymap[Qt::Key_CapsLock] = SDLK_CAPSLOCK;
-__keymap[Qt::Key_NumLock] = SDLK_NUMLOCKCLEAR;
-__keymap[Qt::Key_ScrollLock] = SDLK_SCROLLLOCK;
-__keymap[Qt::Key_F1] = SDLK_F1;
-__keymap[Qt::Key_F2] = SDLK_F2;
-__keymap[Qt::Key_F3] = SDLK_F3;
-__keymap[Qt::Key_F4] = SDLK_F4;
-__keymap[Qt::Key_F5] = SDLK_F5;
-__keymap[Qt::Key_F6] = SDLK_F6;
-__keymap[Qt::Key_F7] = SDLK_F7;
-__keymap[Qt::Key_F8] = SDLK_F8;
-__keymap[Qt::Key_F9] = SDLK_F9;
-__keymap[Qt::Key_F10] = SDLK_F10;
-__keymap[Qt::Key_F11] = SDLK_F11;
-__keymap[Qt::Key_F12] = SDLK_F12;
-__keymap[Qt::Key_F13] = SDLK_F13;
-__keymap[Qt::Key_F14] = SDLK_F14;
-__keymap[Qt::Key_F15] = SDLK_F15;
-__keymap[Qt::Key_Back]=SDLK_AC_BACK;
-__keymap[Qt::Key_Menu] = SDLK_MENU;
-__keymap[Qt::Key_Help] = SDLK_HELP;
-
-// A-Z
-for(int key='A'; key<='Z'; key++)
-    __keymap[Qt::Key(key)] = key + 32;
-
-// 0-9
-for(int key='0'; key<='9'; key++)
-    __keymap[Qt::Key(key)] = key;
+  // start timer to refresh engine at each frame
+  timerId = startTimer(0);
+  setFocusPolicy (Qt::StrongFocus);
 }
 
-//------------------------------------------------------------------------------------------------------
-// get SDL key from Qt key
-//------------------------------------------------------------------------------------------------------
-SDL_Keycode __convertQtKeyToSDL(Qt::Key qtKey)
-{
-SDL_Keycode sldKey = __keymap.value(Qt::Key(qtKey));
+Urho3dWidget::~Urho3dWidget() {}
 
-if(sldKey == 0)
-    printf("Warning: Key %d not mapped", qtKey);
+void Urho3dWidget::Start() {
+  using namespace Urho3D;
+  createScene();
+  auto *cache = GetSubsystem<ResourceCache>();
 
-return sldKey;
+  // Construct new Text object
+  SharedPtr<Text> helloText(new Text(context_));
+
+  // Set String to display
+  helloText->SetText("Hello World from Urho3D inside Qt5 Widgets !");
+
+  // Set font and text color
+  helloText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"), 20);
+  helloText->SetColor(Color(0.0f, 1.0f, 0.0f));
+
+  // Align Text center-screen
+  helloText->SetHorizontalAlignment(HA_CENTER);
+  helloText->SetVerticalAlignment(VA_CENTER);
+
+  // Add Text instance to the UI root element
+  GetSubsystem<UI>()->GetRoot()->AddChild(helloText);
+  setupViewport();
+  SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(Urho3dWidget, HandleUpdate));
 }
 
-//------------------------------------------------------------------------------------------------------
-// get SDL key modifier from Qt key modifier
-//------------------------------------------------------------------------------------------------------
-Uint16 __convertQtKeyModifierToSDL(Qt::KeyboardModifiers qtKeyModifiers)
-{
-Uint16 sdlModifiers = KMOD_NONE;
-
-if(qtKeyModifiers.testFlag(Qt::ShiftModifier))
-    sdlModifiers |= KMOD_LSHIFT | KMOD_RSHIFT;
-if(qtKeyModifiers.testFlag(Qt::ControlModifier))
-    sdlModifiers |= KMOD_LCTRL | KMOD_RCTRL;
-if(qtKeyModifiers.testFlag(Qt::AltModifier))
-    sdlModifiers |= KMOD_LALT | KMOD_RALT;
-
-return sdlModifiers;
+void Urho3dWidget::Stop() {
+  if (engine_.NotNull() && engine_->IsInitialized()) {
+    engine_->Exit();
+  }
 }
 
+void Urho3dWidget::Setup() {
+  Urho3D::VariantMap engineParameters_;
+  engineParameters_["FullScreen"] = false;
+  engineParameters_["WindowWidth"] = 1280;
+  engineParameters_["WindowHeight"] = 720;
+  engineParameters_["WindowResizable"] = true;
+#ifdef Q_OS_WIN32
+  engineParameters_["ForceGL2"] = true;
+#endif
+  engineParameters_["ResourcePrefixPaths"] =
+      ";D:/masteraplikasi/transferh11nov/urho3d/msvc/release/share/Resources";
+  engineParameters_["ExternalWindow"] = (void *)winId();
 
-Urho3dWidget::Urho3dWidget(Urho3D::Context *context, QWidget *parent) : QWidget(parent),Urho3D::Object(context),
-    engine_(nullptr),scene_(nullptr),cameraNode_(nullptr)
-	//here there is now scene_ and cameraNode_ ready for use.
-	//but for the simple demos, currently not needed yet
-{
-    __initKeyMap();
+  engine_ = new Urho3D::Engine(context_);
+  engine_->Initialize(engineParameters_);
+}
+
+void Urho3dWidget::closeEvent(QCloseEvent *e) {
+  e->accept();
+  engine_->Exit();
+}
+
+void Urho3dWidget::timerEvent(QTimerEvent *e) {
+  QWidget::timerEvent(e);
+  // FIXME : Uncommenting following line sometimes crashes the ui in release
+  // build
+  // still don't know why. But, I believe this should be better removed.
+  // qApp->processEvents();
+
+  if (engine_.NotNull() && engine_->IsInitialized()) {
+    engine_->RunFrame();
+  }
+}
+
+void Urho3dWidget::resizeEvent(QResizeEvent *e) {
+  if (engine_->IsInitialized()) {
+    int width = e->size().width();
+    int height = e->size().height();
+
+    Urho3D::Graphics *graphics = GetSubsystem<Urho3D::Graphics>();
+
+    SDL_Window *win = (SDL_Window *)graphics->GetWindow();
+    SDL_SetWindowSize(win, width, height);
+  }
+}
+
+void Urho3dWidget::keyPressEvent(QKeyEvent *e) { 
     
-    // start timer to refresh engine at each frame
-    timerId = startTimer(0);
-}
-
-Urho3dWidget::~Urho3dWidget()
-{  
-    
-}
-
-void Urho3dWidget::Start()
-{
-    using namespace Urho3D;
-    auto* cache = GetSubsystem<ResourceCache>();
-   
-       // Construct new Text object
-       SharedPtr<Text> helloText(new Text(context_));
-   
-       // Set String to display
-       helloText->SetText("Hello World from Urho3D inside Qt5 Widgets !");
-   
-       // Set font and text color
-       helloText->SetFont(cache->GetResource<Font>("Fonts/Anonymous Pro.ttf"),20);
-       helloText->SetColor(Color(0.0f, 1.0f, 0.0f));
-   
-       // Align Text center-screen 
-       helloText->SetHorizontalAlignment(HA_CENTER);
-       helloText->SetVerticalAlignment(VA_CENTER);
-   
-       // Add Text instance to the UI root element
-     GetSubsystem<UI>()->GetRoot()->AddChild(helloText);
-   SubscribeToEvent(E_UPDATE, URHO3D_HANDLER(Urho3dWidget, HandleUpdate));
-}
-
-void Urho3dWidget::Stop()
-{
-    if(engine_.NotNull () && engine_->IsInitialized ()){
-        engine_->Exit ();
+    if(cameraNode_.NotNull ()){
+    if (e->key ()==Qt::Key_W)
+      cameraNode_->Translate(Urho3D::Vector3::FORWARD * MOVE_SPEED * timeStep);
+    if (e->key ()==Qt::Key_S)
+      cameraNode_->Translate(Urho3D::Vector3::BACK * MOVE_SPEED * timeStep);
+    if (e->key ()==Qt::Key_A)
+      cameraNode_->Translate(Urho3D::Vector3::LEFT * MOVE_SPEED * timeStep);
+    if (e->key ()==Qt::Key_D)
+      cameraNode_->Translate(Urho3D::Vector3::RIGHT * MOVE_SPEED * timeStep);
     }
 }
+  
+void Urho3dWidget::HandleUpdate(Urho3D::StringHash eventType,
+                                Urho3D::VariantMap &eventData) {
+  Q_UNUSED(eventType)
+   timeStep = eventData["TimeStep"].GetFloat();
 
-void Urho3dWidget::Setup()
-{
-    Urho3D::VariantMap engineParameters_;
-    engineParameters_["FullScreen"]=false;
-    engineParameters_["WindowWidth"]=1280;
-    engineParameters_["WindowHeight"]=720;
-    engineParameters_["WindowResizable"]=true;
-    engineParameters_["ResourcePrefixPaths"]=";D:/masteraplikasi/transferh11nov/urho3d/msvc/release/share/Resources";
-    engineParameters_["ExternalWindow"]=(void*)winId();
-    
-    engine_ = new Urho3D::Engine(context_);
-    engine_->Initialize(engineParameters_);
+  if (cameraNode_.NotNull()) MoveCamera();
 }
 
-void Urho3dWidget::closeEvent(QCloseEvent *e)
-{
-     e->accept ();
-     engine_->Exit ();
+void Urho3dWidget::createScene() {
+  auto *cache = GetSubsystem<Urho3D::ResourceCache>();
+  scene_ = new Urho3D::Scene(context_);
+  scene_->CreateComponent<Urho3D::Octree>();
+  Urho3D::Node *planeNode = scene_->CreateChild("Plane");
+  planeNode->SetScale(Urho3D::Vector3(100.0f, 1.0f, 100.0f));
+  auto *planeObject = planeNode->CreateComponent<Urho3D::StaticModel>();
+  planeObject->SetModel(cache->GetResource<Urho3D::Model>("Models/Plane.mdl"));
+  planeObject->SetMaterial(
+      cache->GetResource<Urho3D::Material>("Materials/StoneTiled.xml"));
+
+  // Create a directional light to the world so that we can see something. The
+  // light scene node's orientation controls the
+  // light direction; we will use the SetDirection() function which calculates
+  // the orientation from a forward direction vector.
+  // The light will use default settings (white light, no shadows)
+  Urho3D::Node *lightNode = scene_->CreateChild("DirectionalLight");
+  lightNode->SetDirection(Urho3D::Vector3(
+      0.6f, -1.0f,
+      0.8f));  // The direction vector does not need to be normalized
+  auto *light = lightNode->CreateComponent<Urho3D::Light>();
+  light->SetLightType(Urho3D::LIGHT_DIRECTIONAL);
+
+  cameraNode_ = scene_->CreateChild("Camera");
+  cameraNode_->CreateComponent<Urho3D::Camera>();
+
+  // Set an initial position for the camera scene node above the plane
+  cameraNode_->SetPosition(Urho3D::Vector3(0.0f, 5.0f, 0.0f));
 }
 
-void Urho3dWidget::timerEvent(QTimerEvent *e)
-{
-    QWidget::timerEvent(e);
-   // FIXME : Uncommenting following line sometimes crashes the ui in release build
-   // still don't know why. But, I believe this should be better removed.
-   // qApp->processEvents();
-    
-    if(engine_.NotNull () && engine_->IsInitialized ()){
-        engine_->RunFrame ();
-    }
+void Urho3dWidget::setupViewport() {
+  auto *renderer = GetSubsystem<Urho3D::Renderer>();
+
+  // Set up a viewport to the Renderer subsystem so that the 3D scene can be
+  // seen. We need to define the scene and the camera
+  // at minimum. Additionally we could configure the viewport screen size and
+  // the rendering path (eg. forward / deferred) to
+  // use, but now we just use full screen and default render path configured in
+  // the engine command line options
+  Urho3D::SharedPtr<Urho3D::Viewport> viewport(new Urho3D::Viewport(
+      context_, scene_, cameraNode_->GetComponent<Urho3D::Camera>()));
+  renderer->SetViewport(0, viewport);
 }
 
-void Urho3dWidget::resizeEvent(QResizeEvent *e)
-{
-    if(engine_->IsInitialized())
-    {
-        int width = e->size().width();
-        int height = e->size().height();
-    
-        Urho3D::Graphics* graphics = GetSubsystem<Urho3D::Graphics>();
-    
-        SDL_Window * win = (SDL_Window*)graphics->GetWindow();
-        SDL_SetWindowSize(win, width, height);
-    }
-}
+void Urho3dWidget::MoveCamera() {
+ // if (GetSubsystem<Urho3D::UI>()->GetFocusElement()) return;
 
-void Urho3dWidget::keyPressEvent(QKeyEvent *e)
-{
-    // Transmit key press event to SDL
-    SDL_Event sdlEvent;
-    sdlEvent.type = SDL_KEYDOWN;
-    sdlEvent.key.keysym.sym = __convertQtKeyToSDL( Qt::Key(e->key()) );
-    sdlEvent.key.keysym.mod = __convertQtKeyModifierToSDL(e->modifiers());
-    SDL_PushEvent(&sdlEvent);
-}
+  auto *input = GetSubsystem<Urho3D::Input>();
 
-void Urho3dWidget::HandleUpdate(Urho3D::StringHash eventType, Urho3D::VariantMap &eventData)
-{
-    Q_UNUSED(eventType)
-    float timeStep = eventData["TimeStep"].GetFloat();
-    
-   if(cameraNode_.NotNull ()) cameraNode_->Rotate (Urho3D::Quaternion(30.0f * timeStep, Urho3D::Vector3(0, 1, 0)));
+  // Mouse sensitivity as degrees per pixel
+  const float MOUSE_SENSITIVITY = 1.2f;
+
+  // Use this frame's mouse motion to adjust camera node yaw and pitch. Clamp
+  // the pitch between -90 and 90 degrees
+  Urho3D::IntVector2 mouseMove = input->GetMouseMove();
+  yaw_ += MOUSE_SENSITIVITY * mouseMove.x_;
+  pitch_ += MOUSE_SENSITIVITY * mouseMove.y_;
+  pitch_ = Urho3D::Clamp(pitch_, -90.0f, 90.0f);
+
+  // Construct new orientation for the camera scene node from yaw and pitch.
+  // Roll is fixed to zero
+  cameraNode_->SetRotation(Urho3D::Quaternion(pitch_, yaw_, 0.0f));
+ 
 }
