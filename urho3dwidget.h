@@ -31,7 +31,7 @@ class Urho3dWidget : public QWidget, public Urho3D::Object {
   void closeEvent(QCloseEvent* e);
   void timerEvent(QTimerEvent* e);
   void resizeEvent(QResizeEvent* e);
-  void keyPressEvent(QKeyEvent* e); 
+  void keyPressEvent(QKeyEvent* e);
 
  private:
   void HandleUpdate(Urho3D::StringHash eventType,
@@ -48,7 +48,7 @@ class Urho3dWidget : public QWidget, public Urho3D::Object {
   /// Camera pitch angle.
   float pitch_;
   int timerId;
-  float timeStep=1;
+  float timeStep = 1;
   // Movement speed as world units per second
   const float MOVE_SPEED = 40.0f;
 };

@@ -21,11 +21,10 @@
 #include <QCloseEvent>
 #include <QKeyEvent>
 #include <QMap>
-#include <QResizeEvent>
-#include <QTimerEvent>
 #include <QPainter>
 #include <QPoint>
- 
+#include <QResizeEvent>
+#include <QTimerEvent>
 
 Urho3dWidget::Urho3dWidget(Urho3D::Context *context, QWidget *parent)
     : QWidget(parent),
@@ -35,11 +34,10 @@ Urho3dWidget::Urho3dWidget(Urho3D::Context *context, QWidget *parent)
       cameraNode_(nullptr)
 // here there is now scene_ and cameraNode_ ready for use.
 // but for the simple demos, currently not needed yet
-{ 
-
+{
   // start timer to refresh engine at each frame
   timerId = startTimer(0);
-  setFocusPolicy (Qt::StrongFocus);
+  setFocusPolicy(Qt::StrongFocus);
 }
 
 Urho3dWidget::~Urho3dWidget() {}
@@ -121,24 +119,23 @@ void Urho3dWidget::resizeEvent(QResizeEvent *e) {
   }
 }
 
-void Urho3dWidget::keyPressEvent(QKeyEvent *e) { 
-    
-    if(cameraNode_.NotNull ()){
-    if (e->key ()==Qt::Key_W)
+void Urho3dWidget::keyPressEvent(QKeyEvent *e) {
+  if (cameraNode_.NotNull()) {
+    if (e->key() == Qt::Key_W)
       cameraNode_->Translate(Urho3D::Vector3::FORWARD * MOVE_SPEED * timeStep);
-    if (e->key ()==Qt::Key_S)
+    if (e->key() == Qt::Key_S)
       cameraNode_->Translate(Urho3D::Vector3::BACK * MOVE_SPEED * timeStep);
-    if (e->key ()==Qt::Key_A)
+    if (e->key() == Qt::Key_A)
       cameraNode_->Translate(Urho3D::Vector3::LEFT * MOVE_SPEED * timeStep);
-    if (e->key ()==Qt::Key_D)
+    if (e->key() == Qt::Key_D)
       cameraNode_->Translate(Urho3D::Vector3::RIGHT * MOVE_SPEED * timeStep);
-    }
+  }
 }
-  
+
 void Urho3dWidget::HandleUpdate(Urho3D::StringHash eventType,
                                 Urho3D::VariantMap &eventData) {
   Q_UNUSED(eventType)
-   timeStep = eventData["TimeStep"].GetFloat();
+  timeStep = eventData["TimeStep"].GetFloat();
 
   if (cameraNode_.NotNull()) MoveCamera();
 }
@@ -188,7 +185,7 @@ void Urho3dWidget::setupViewport() {
 }
 
 void Urho3dWidget::MoveCamera() {
- // if (GetSubsystem<Urho3D::UI>()->GetFocusElement()) return;
+  // if (GetSubsystem<Urho3D::UI>()->GetFocusElement()) return;
 
   auto *input = GetSubsystem<Urho3D::Input>();
 
@@ -205,5 +202,4 @@ void Urho3dWidget::MoveCamera() {
   // Construct new orientation for the camera scene node from yaw and pitch.
   // Roll is fixed to zero
   cameraNode_->SetRotation(Urho3D::Quaternion(pitch_, yaw_, 0.0f));
- 
 }
